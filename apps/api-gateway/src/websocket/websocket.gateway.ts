@@ -262,4 +262,64 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
       lastActivity: client.lastActivity,
     }));
   }
+
+  @SubscribeMessage('join-customer')
+  handleJoinCustomer(@MessageBody() data: { customerId: string; branchId: string }, @ConnectedSocket() client: Socket) {
+    const clientInfo = this.connectedClients.get(client.id);
+    if (clientInfo) {
+      clientInfo.branchId = data.branchId;
+      clientInfo.userId = data.customerId;
+      clientInfo.role = 'customer';
+      
+      client.join(`branch-${data.branchId}`);
+      client.join('customers');
+      
+      client.emit('customer-joined', {
+        customerId: data.customerId,
+        branchId: data.branchId,
+      });
+    }
+  }
+
+  @SubscribeMessage('leave-customer')
+  handleLeaveCustomer(@MessageBody() data: { customerId: string }, @ConnectedSocket() client: Socket) {
+    client.leave('customers');
+  }
+
+  @SubscribeMessage('track-item-view')
+  handleTrackItemView(@MessageBody() data: { customerId: string; itemId: string; timestamp: Date }) {
+    console.log('Item view tracked:', data);
+  }
+
+  @SubscribeMessage('request-recommendations')
+  handleRequestRecommendations(@MessageBody() data: { customerId: string; currentCart: any[]; branchId: string }, @ConnectedSocket() client: Socket) {
+    client.emit('recommendations-ready', {
+      customerId: data.customerId,
+      recommendations: [], // Would be populated by AI service
+    });
+  }
+
+  @SubscribeMessage('place-order')
+  handlePlaceOrder(@MessageBody() data: any, @ConnectedSocket() client: Socket) {
+    this.broadcastToBranch(data.branchId, WEBSOCKET_EVENTS.ORDER_UPDATED, {
+      ...data,
+      status: 'confirmed',
+      timestamp: new Date(),
+    });
+  }
+
+  handleInventoryUpdate(data: any) {
+    this.broadcastInventoryUpdate(data);
+  }
+
+  handleSystemAlert(data: any) {
+    this.sendSystemAlert(data);
+  }
+
+  handleFlashDeal(data: any) {
+    this.broadcastToBranch(data.branchId, 'flash-deal', {
+      ...data,
+      timestamp: new Date(),
+    });
+  }
 }

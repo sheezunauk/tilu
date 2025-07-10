@@ -14,6 +14,7 @@ import { AiModule } from './ai/ai.module';
 import { BranchesModule } from './branches/branches.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { HealthModule } from './health/health.module';
+import { MarketingModule } from './marketing/marketing.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { HealthModule } from './health/health.module';
     BranchesModule,
     WebsocketModule,
     HealthModule,
+    MarketingModule,
   ],
 })
 export class AppModule {}

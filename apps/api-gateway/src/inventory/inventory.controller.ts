@@ -52,4 +52,28 @@ export class InventoryController {
   updateStock(@Param('id') id: string, @Body() body: { quantity: number; operation: 'add' | 'subtract' | 'set' }) {
     return this.inventoryService.updateStock(id, body.quantity, body.operation);
   }
+
+  @ApiOperation({ summary: 'Get stock depletion predictions' })
+  @Get('predictions/:branchId')
+  getStockPredictions(@Param('branchId') branchId: string) {
+    return this.inventoryService.predictStockDepletion(branchId);
+  }
+
+  @ApiOperation({ summary: 'Get reorder suggestions' })
+  @Get('reorder-suggestions/:branchId')
+  getReorderSuggestions(@Param('branchId') branchId: string) {
+    return this.inventoryService.generateReorderSuggestions(branchId);
+  }
+
+  @ApiOperation({ summary: 'Get inventory analytics' })
+  @Get('analytics/:branchId')
+  getInventoryAnalytics(@Param('branchId') branchId: string) {
+    return this.inventoryService.getInventoryAnalytics(branchId);
+  }
+
+  @ApiOperation({ summary: 'Process automatic reorders' })
+  @Post('auto-reorder/:branchId')
+  processAutoReorder(@Param('branchId') branchId: string) {
+    return this.inventoryService.processAutomaticReorder(branchId);
+  }
 }
