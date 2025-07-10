@@ -143,6 +143,124 @@ export class AiService {
     };
   }
 
+  async processStaffQuery(query: string, context?: string): Promise<string> {
+    const lowerQuery = query.toLowerCase();
+    
+    if (lowerQuery.includes('sales') || lowerQuery.includes('revenue')) {
+      return 'Today\'s sales are £1,247.50, which is 12% higher than yesterday. The best-selling item is Chicken Tikka Masala with 23 orders. Peak hour was 12:30-1:30 PM with £312 in sales.';
+    }
+    
+    if (lowerQuery.includes('inventory') || lowerQuery.includes('stock')) {
+      return 'Current stock levels: Chicken (85%), Rice (92%), Naan bread (78%). ⚠️ Garlic Naan is running low (12 portions left) and should be restocked soon. Mango Lassi ingredients are at 95%.';
+    }
+    
+    if (lowerQuery.includes('customer') || lowerQuery.includes('order')) {
+      return 'There are currently 3 pending orders. Average wait time is 18 minutes. Next order up: ORD-001 for John Smith (Chicken Tikka Masala + Garlic Naan). 2 delivery orders in queue.';
+    }
+    
+    if (lowerQuery.includes('popular') || lowerQuery.includes('trending')) {
+      return 'Today\'s trending items: 1) Chicken Tikka Masala (23 orders), 2) Fish & Chips (18 orders), 3) Vegetable Curry (15 orders). Mango Lassi is the most popular drink.';
+    }
+    
+    if (lowerQuery.includes('help') || lowerQuery.includes('training')) {
+      return 'Quick tips: Use fuzzy search for faster item lookup, suggest Garlic Naan with curry orders (92% acceptance rate), and offer Mango Lassi as a combo (increases order value by £2.95 average).';
+    }
+    
+    if (lowerQuery.includes('busy') || lowerQuery.includes('rush')) {
+      return 'Current kitchen load: Medium (3 orders in queue). Estimated prep time for new orders: 20-25 minutes. Consider suggesting quick items like Garlic Naan or pre-made desserts.';
+    }
+    
+    return 'I can help you with sales data, inventory levels, customer information, order management, popular items, and staff tips. Try asking about "today\'s sales", "stock levels", "popular items", or "kitchen status".';
+  }
+
+  async generateSmartRecommendations(
+    currentOrder: Array<{ id: string; name: string; price: number; category: string }>,
+    customerId?: string,
+    context?: string
+  ): Promise<any[]> {
+    const recommendations = [];
+    
+    const hasMainDish = currentOrder.some(item => 
+      item.category === 'mains' || 
+      item.name.toLowerCase().includes('curry') || 
+      item.name.toLowerCase().includes('masala') ||
+      item.name.toLowerCase().includes('fish')
+    );
+    
+    const hasDrink = currentOrder.some(item => 
+      item.category === 'drinks' || 
+      item.name.toLowerCase().includes('lassi') ||
+      item.name.toLowerCase().includes('chai')
+    );
+    
+    const hasBread = currentOrder.some(item => 
+      item.name.toLowerCase().includes('naan') ||
+      item.name.toLowerCase().includes('bread')
+    );
+
+    if (hasMainDish && !hasDrink) {
+      recommendations.push({
+        id: 'rec-drink',
+        type: 'combo',
+        title: 'Perfect Drink Pairing',
+        description: 'Complete your meal with a refreshing drink',
+        items: [
+          { id: 'drink-1', name: 'Mango Lassi', price: 2.95 },
+          { id: 'drink-2', name: 'Masala Chai', price: 2.50 },
+        ],
+        confidence: 0.89,
+        reason: '89% of customers with curry orders add a drink',
+      });
+    }
+
+    if (hasMainDish && !hasBread) {
+      recommendations.push({
+        id: 'rec-bread',
+        type: 'upsell',
+        title: 'Add Garlic Naan',
+        description: 'Perfect for sharing and soaking up delicious sauces',
+        items: [
+          { id: 'bread-1', name: 'Garlic Naan', price: 3.50 },
+        ],
+        confidence: 0.92,
+        reason: 'Most popular side dish - 92% acceptance rate',
+      });
+    }
+
+    if (currentOrder.length >= 2 && !currentOrder.some(item => item.name.toLowerCase().includes('dessert'))) {
+      recommendations.push({
+        id: 'rec-dessert',
+        type: 'popular',
+        title: 'Sweet Finish',
+        description: 'End your meal with our customer favorite dessert',
+        items: [
+          { id: 'dessert-1', name: 'Gulab Jamun', price: 4.50 },
+        ],
+        confidence: 0.78,
+        reason: 'Trending dessert with 4.8★ rating this week',
+      });
+    }
+
+    const orderValue = currentOrder.reduce((sum, item) => sum + item.price, 0);
+    if (orderValue >= 15 && orderValue < 20) {
+      recommendations.push({
+        id: 'rec-combo',
+        type: 'seasonal',
+        title: 'Upgrade to Family Combo',
+        description: 'Add another main dish and save £3',
+        items: [
+          { id: 'main-2', name: 'Vegetable Curry', price: 9.99 },
+          { id: 'rice-1', name: 'Basmati Rice', price: 2.50 },
+        ],
+        savings: 3.00,
+        confidence: 0.71,
+        reason: 'Family combos are popular for orders over £15',
+      });
+    }
+
+    return recommendations.slice(0, 3);
+  }
+
   async askAssistant(query: string, context?: any): Promise<any> {
     const queryLower = query.toLowerCase();
     

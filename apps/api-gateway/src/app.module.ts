@@ -28,7 +28,7 @@ import { HealthModule } from './health/health.module';
       password: process.env.DB_PASSWORD || 'tillu_password',
       database: process.env.DB_NAME || 'tillu_pos',
       autoLoadEntities: true,
-      synchronize: false,
+      synchronize: process.env.NODE_ENV === 'development',
     }),
     AuthModule,
     OrdersModule,

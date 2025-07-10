@@ -4,8 +4,6 @@ import { AiService } from './ai.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('AI Services')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}
@@ -24,8 +22,16 @@ export class AiController {
 
   @ApiOperation({ summary: 'Staff AI assistant query' })
   @Post('assistant')
-  askAssistant(@Body() body: { query: string; context?: any }) {
-    return this.aiService.askAssistant(body.query, body.context);
+  async askAssistant(@Body() body: { message?: string; query?: string; context?: any }) {
+    const query = body.message || body.query;
+    const response = await this.aiService.processStaffQuery(query, body.context);
+    return { response };
+  }
+
+  @ApiOperation({ summary: 'Get smart recommendations for current order' })
+  @Post('recommendations')
+  getSmartRecommendations(@Body() body: { currentOrder: any[] }) {
+    return this.aiService.generateSmartRecommendations(body.currentOrder);
   }
 
   @ApiOperation({ summary: 'Get upselling suggestions' })

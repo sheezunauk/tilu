@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { Button, Card, CardHeader, CardTitle, CardContent, Input, Badge } from '@tillu/ui'
-import { ShoppingCart, Search, Mic, Users, Settings, BarChart3 } from 'lucide-react'
+import { ShoppingCart, Search, Mic, Users, Settings, BarChart3, Bot } from 'lucide-react'
 import { offlineSyncService } from '../services/offlineSync';
+import { AIAssistant } from '../components/AIAssistant';
+import { SmartRecommendations } from '../components/SmartRecommendations';
 
 interface MenuItem {
   id: string
@@ -25,6 +27,7 @@ export default function POSTerminal() {
   const [isOnline, setIsOnline] = useState(true)
   const [pendingOrders, setPendingOrders] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [showAIAssistant, setShowAIAssistant] = useState(false)
 
   useEffect(() => {
     const mockMenuItems: MenuItem[] = [
@@ -58,6 +61,17 @@ export default function POSTerminal() {
       }
       return [...prev, { ...item, quantity: 1 }]
     })
+  }
+
+  const addRecommendationToOrder = (items: Array<{ id: string; name: string; price: number }>) => {
+    const newItems = items.map(item => ({
+      ...item,
+      id: Date.now().toString() + Math.random(),
+      category: 'recommendation',
+      isAvailable: true,
+      quantity: 1,
+    }));
+    setCurrentOrder(prev => [...prev, ...newItems]);
   }
 
   const removeFromOrder = (itemId: string) => {
@@ -179,6 +193,14 @@ export default function POSTerminal() {
                 <BarChart3 className="h-4 w-4 mr-2" />
                 Analytics
               </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowAIAssistant(true)}
+              >
+                <Bot className="h-4 w-4 mr-2" />
+                AI Assistant
+              </Button>
               <Button variant="ghost" size="sm">
                 <Settings className="h-4 w-4" />
               </Button>
@@ -243,11 +265,12 @@ export default function POSTerminal() {
           </div>
 
           <div className="w-96 bg-white border-l">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold">Current Order</h2>
-                <ShoppingCart className="h-5 w-5 text-gray-500" />
-              </div>
+            <div className="p-6 space-y-6">
+              <div>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-semibold">Current Order</h2>
+                  <ShoppingCart className="h-5 w-5 text-gray-500" />
+                </div>
 
               <div className="space-y-3 mb-6">
                 {currentOrder.length === 0 ? (
@@ -310,10 +333,23 @@ export default function POSTerminal() {
                   </div>
                 </div>
               )}
+              </div>
+
+              <div>
+                <SmartRecommendations
+                  currentOrder={currentOrder}
+                  onAddRecommendation={addRecommendationToOrder}
+                />
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      <AIAssistant 
+        isOpen={showAIAssistant} 
+        onClose={() => setShowAIAssistant(false)} 
+      />
     </div>
   )
 }

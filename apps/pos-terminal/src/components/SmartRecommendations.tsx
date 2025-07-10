@@ -38,15 +38,25 @@ export function SmartRecommendations({ currentOrder, onAddRecommendation }: Smar
 
   const generateRecommendations = async () => {
     setIsLoading(true)
+    console.log('SmartRecommendations: Generating recommendations for order:', currentOrder)
     try {
-      const response = await fetch('/api/ai/smart-recommendations', {
+      const response = await fetch('http://localhost:8000/ai/recommendations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentOrder }),
       })
       
       const data = await response.json()
-      setRecommendations(data.recommendations || generateMockRecommendations())
+      console.log('SmartRecommendations: API response:', data)
+      
+      const apiRecommendations = Array.isArray(data) ? data : (data.recommendations || [])
+      
+      if (apiRecommendations.length > 0) {
+        setRecommendations(apiRecommendations)
+      } else {
+        console.log('SmartRecommendations: Using mock recommendations')
+        setRecommendations(generateMockRecommendations())
+      }
     } catch (error) {
       console.error('Failed to fetch recommendations:', error)
       setRecommendations(generateMockRecommendations())
@@ -56,9 +66,22 @@ export function SmartRecommendations({ currentOrder, onAddRecommendation }: Smar
   }
 
   const generateMockRecommendations = (): SmartRecommendation[] => {
-    const hasMainDish = currentOrder.some(item => item.category === 'Main')
-    const hasDrink = currentOrder.some(item => item.category === 'Drinks')
-    const hasSide = currentOrder.some(item => item.category === 'Sides')
+    const hasMainDish = currentOrder.some(item => 
+      item.category === 'mains' || 
+      item.name.toLowerCase().includes('curry') || 
+      item.name.toLowerCase().includes('masala') ||
+      item.name.toLowerCase().includes('fish')
+    )
+    const hasDrink = currentOrder.some(item => 
+      item.category === 'drinks' || 
+      item.name.toLowerCase().includes('lassi') ||
+      item.name.toLowerCase().includes('chai')
+    )
+    const hasSide = currentOrder.some(item => 
+      item.category === 'sides' ||
+      item.name.toLowerCase().includes('naan') ||
+      item.name.toLowerCase().includes('rice')
+    )
 
     const recommendations: SmartRecommendation[] = []
 
