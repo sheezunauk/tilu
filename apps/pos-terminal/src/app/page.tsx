@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { Button, Card, CardHeader, CardTitle, CardContent, Input, Badge } from '@tillu/ui'
-import { ShoppingCart, Search, Mic, Users, Settings, BarChart3, Bot } from 'lucide-react'
+import { ShoppingCart, Search, Mic, Users, Settings, BarChart3, Bot, Wifi, WifiOff } from 'lucide-react'
 import { offlineSyncService } from '../services/offlineSync';
 import { AIAssistant } from '../components/AIAssistant';
 import { SmartRecommendations } from '../components/SmartRecommendations';
+import { NotificationCenter } from '../components/NotificationCenter';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 interface MenuItem {
   id: string
@@ -28,6 +30,21 @@ export default function POSTerminal() {
   const [pendingOrders, setPendingOrders] = useState(0)
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [showAIAssistant, setShowAIAssistant] = useState(false)
+  const [branchId] = useState('branch-1')
+  const [userId] = useState('cashier-001')
+
+  const {
+    isConnected: isWebSocketConnected,
+    activeUsers,
+    notifications,
+    sendOrderUpdate,
+    clearNotification,
+    clearAllNotifications,
+  } = useWebSocket({
+    branchId,
+    role: 'cashier',
+    userId,
+  })
 
   useEffect(() => {
     const mockMenuItems: MenuItem[] = [
@@ -104,17 +121,53 @@ export default function POSTerminal() {
     const recognition = new SpeechRecognition()
     
     recognition.continuous = false
-    recognition.interimResults = false
+    recognition.interimResults = true
     recognition.lang = 'en-GB'
+    recognition.maxAlternatives = 3
 
     recognition.onstart = () => {
       setIsListening(true)
     }
 
     recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript
-      setSearchQuery(transcript.toLowerCase())
-      setIsListening(false)
+      let finalTranscript = ''
+      let interimTranscript = ''
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript
+        } else {
+          interimTranscript += transcript
+        }
+      }
+
+      if (finalTranscript) {
+        const processedTranscript = finalTranscript.toLowerCase().trim()
+        
+        if (processedTranscript.includes('add') || processedTranscript.includes('order')) {
+          const itemMatch = menuItems.find(item => 
+            processedTranscript.includes(item.name.toLowerCase()) ||
+            item.name.toLowerCase().includes(processedTranscript.replace(/add|order|please|i want|get me/g, '').trim())
+          )
+          if (itemMatch) {
+            addToOrder(itemMatch)
+            setSearchQuery('')
+          } else {
+            setSearchQuery(processedTranscript)
+          }
+        } else if (processedTranscript.includes('clear') || processedTranscript.includes('reset')) {
+          setSearchQuery('')
+          setCurrentOrder([])
+        } else if (processedTranscript.includes('total') || processedTranscript.includes('amount')) {
+          alert(`Current total: £${getTotalAmount().toFixed(2)}`)
+        } else {
+          setSearchQuery(processedTranscript)
+        }
+        setIsListening(false)
+      } else if (interimTranscript) {
+        setSearchQuery(interimTranscript.toLowerCase())
+      }
     }
 
     recognition.onerror = (event: any) => {
@@ -122,6 +175,8 @@ export default function POSTerminal() {
       setIsListening(false)
       if (event.error === 'not-allowed') {
         alert('Microphone access denied. Please allow microphone access and try again.')
+      } else if (event.error === 'no-speech') {
+        alert('No speech detected. Please try again.')
       } else {
         alert('Speech recognition failed. Please try again.')
       }
@@ -153,6 +208,8 @@ export default function POSTerminal() {
         })
         
         if (response.ok) {
+          const orderData = await response.json()
+          sendOrderUpdate(orderData.id || `order-${Date.now()}`, 'confirmed')
           alert(`Order processed online! Total: £${getTotalAmount().toFixed(2)}`)
         } else {
           throw new Error('Online order failed')
@@ -184,7 +241,15 @@ export default function POSTerminal() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-gray-900">Tillu POS Terminal</h1>
             <div className="flex items-center space-x-4">
-              <Badge variant="success">Online</Badge>
+              <Badge variant={isOnline ? "success" : "destructive"} className="flex items-center space-x-1">
+                {isWebSocketConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                <span>{isOnline ? 'Online' : 'Offline'}</span>
+              </Badge>
+              {activeUsers > 1 && (
+                <Badge variant="secondary" className="text-xs">
+                  {activeUsers} active users
+                </Badge>
+              )}
               <Button variant="ghost" size="sm">
                 <Users className="h-4 w-4 mr-2" />
                 Staff
@@ -349,6 +414,12 @@ export default function POSTerminal() {
       <AIAssistant 
         isOpen={showAIAssistant} 
         onClose={() => setShowAIAssistant(false)} 
+      />
+
+      <NotificationCenter
+        notifications={notifications}
+        onClearNotification={clearNotification}
+        onClearAll={clearAllNotifications}
       />
     </div>
   )
