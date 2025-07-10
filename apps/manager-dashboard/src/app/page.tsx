@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react'
 import { Button, Card, CardHeader, CardTitle, CardContent, Badge } from '@tillu/ui'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts'
-import { TrendingUp, Users, ShoppingCart, DollarSign, Clock, AlertTriangle, Settings, Download } from 'lucide-react'
+import { TrendingUp, Users, ShoppingCart, DollarSign, Clock, AlertTriangle, Settings, Download, Brain, Activity } from 'lucide-react'
+import { useWebSocket } from '../hooks/useWebSocket'
+import { RealTimeMetrics } from '../components/RealTimeMetrics'
+import { PredictiveAnalytics } from '../components/PredictiveAnalytics'
 
 interface DashboardData {
   todayRevenue: number
@@ -26,6 +29,20 @@ export default function ManagerDashboard() {
 
   const [selectedBranch, setSelectedBranch] = useState('all')
   const [timeRange, setTimeRange] = useState('today')
+  const [showPredictiveAnalytics, setShowPredictiveAnalytics] = useState(false)
+
+  const {
+    isConnected,
+    activeUsers,
+    realTimeData,
+    alerts,
+    clearAlert,
+    clearAllAlerts,
+  } = useWebSocket({
+    branchId: selectedBranch === 'all' ? 'all-branches' : selectedBranch.toLowerCase().replace(' ', '-'),
+    role: 'manager',
+    userId: 'manager-001',
+  })
 
   const salesData = [
     { time: '09:00', revenue: 120, orders: 8 },
@@ -88,6 +105,15 @@ export default function ManagerDashboard() {
                 <option value="month">This Month</option>
               </select>
               
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowPredictiveAnalytics(!showPredictiveAnalytics)}
+              >
+                <Brain className="h-4 w-4 mr-2" />
+                {showPredictiveAnalytics ? 'Hide AI' : 'AI Insights'}
+              </Button>
+
               <Button variant="ghost" size="sm">
                 <Download className="h-4 w-4 mr-2" />
                 Export
@@ -102,6 +128,18 @@ export default function ManagerDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <RealTimeMetrics 
+          isConnected={isConnected}
+          activeUsers={activeUsers}
+          realTimeData={realTimeData}
+        />
+
+        {showPredictiveAnalytics && (
+          <div className="mb-8">
+            <PredictiveAnalytics branchId={selectedBranch} />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
@@ -188,7 +226,7 @@ export default function ManagerDashboard() {
                     <YAxis yAxisId="left" />
                     <YAxis yAxisId="right" orientation="right" />
                     <Tooltip />
-                    <Bar yAxisId="left" dataKey="revenue" fill="#3b82f6" name="Revenue (£)" />
+                    <Line yAxisId="left" type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={3} name="Revenue (£)" />
                     <Line yAxisId="right" type="monotone" dataKey="orders" stroke="#10b981" strokeWidth={2} name="Orders" />
                   </LineChart>
                 </ResponsiveContainer>
@@ -259,36 +297,95 @@ export default function ManagerDashboard() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Real-time Alerts</CardTitle>
+              <CardTitle className="flex items-center justify-between">
+                <span>Live System Alerts</span>
+                {alerts.length > 0 && (
+                  <Button variant="ghost" size="sm" onClick={clearAllAlerts}>
+                    Clear All
+                  </Button>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg">
-                  <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium text-yellow-800">Low Stock Alert</h4>
-                    <p className="text-sm text-yellow-700">Chicken Breast running low (12 left)</p>
-                    <p className="text-xs text-yellow-600 mt-1">2 minutes ago</p>
-                  </div>
-                </div>
+                {alerts.length > 0 ? (
+                  alerts.slice(0, 5).map((alert) => (
+                    <div key={alert.id} className={`p-3 rounded-lg border-l-4 ${
+                      alert.severity === 'critical' ? 'bg-red-50 border-l-red-500' :
+                      alert.severity === 'warning' ? 'bg-yellow-50 border-l-yellow-500' :
+                      'bg-blue-50 border-l-blue-500'
+                    }`}>
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-3">
+                          <AlertTriangle className={`h-5 w-5 mt-0.5 ${
+                            alert.severity === 'critical' ? 'text-red-600' :
+                            alert.severity === 'warning' ? 'text-yellow-600' :
+                            'text-blue-600'
+                          }`} />
+                          <div>
+                            <h4 className={`font-medium ${
+                              alert.severity === 'critical' ? 'text-red-800' :
+                              alert.severity === 'warning' ? 'text-yellow-800' :
+                              'text-blue-800'
+                            }`}>{alert.title}</h4>
+                            <p className={`text-sm ${
+                              alert.severity === 'critical' ? 'text-red-700' :
+                              alert.severity === 'warning' ? 'text-yellow-700' :
+                              'text-blue-700'
+                            }`}>{alert.message}</p>
+                            <p className={`text-xs mt-1 ${
+                              alert.severity === 'critical' ? 'text-red-600' :
+                              alert.severity === 'warning' ? 'text-yellow-600' :
+                              'text-blue-600'
+                            }`}>
+                              {new Intl.DateTimeFormat('en-GB', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }).format(alert.timestamp)}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => clearAlert(alert.id)}
+                          className="h-6 w-6 p-0"
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg">
+                      <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-yellow-800">Low Stock Alert</h4>
+                        <p className="text-sm text-yellow-700">Chicken Breast running low (12 left)</p>
+                        <p className="text-xs text-yellow-600 mt-1">2 minutes ago</p>
+                      </div>
+                    </div>
 
-                <div className="flex items-start space-x-3 p-3 bg-red-50 rounded-lg">
-                  <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium text-red-800">Order Delay</h4>
-                    <p className="text-sm text-red-700">Order #1234 exceeding estimated time</p>
-                    <p className="text-xs text-red-600 mt-1">5 minutes ago</p>
-                  </div>
-                </div>
+                    <div className="flex items-start space-x-3 p-3 bg-red-50 rounded-lg">
+                      <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-red-800">Order Delay</h4>
+                        <p className="text-sm text-red-700">Order #1234 exceeding estimated time</p>
+                        <p className="text-xs text-red-600 mt-1">5 minutes ago</p>
+                      </div>
+                    </div>
 
-                <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
-                  <Users className="h-5 w-5 text-blue-600 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium text-blue-800">Peak Hour Alert</h4>
-                    <p className="text-sm text-blue-700">Lunch rush starting - 15 orders in queue</p>
-                    <p className="text-xs text-blue-600 mt-1">Just now</p>
+                    <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
+                      <Users className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <div>
+                        <h4 className="font-medium text-blue-800">Peak Hour Alert</h4>
+                        <p className="text-sm text-blue-700">Lunch rush starting - 15 orders in queue</p>
+                        <p className="text-xs text-blue-600 mt-1">Just now</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </CardContent>
           </Card>

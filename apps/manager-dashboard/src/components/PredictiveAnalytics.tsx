@@ -24,7 +24,11 @@ interface ForecastData {
   }>
 }
 
-export function PredictiveAnalytics() {
+interface PredictiveAnalyticsProps {
+  branchId: string
+}
+
+export function PredictiveAnalytics({ branchId }: PredictiveAnalyticsProps) {
   const [forecastData, setForecastData] = useState<ForecastData | null>(null)
   const [selectedView, setSelectedView] = useState<'revenue' | 'inventory' | 'staffing'>('revenue')
   const [isLoading, setIsLoading] = useState(true)
@@ -32,7 +36,7 @@ export function PredictiveAnalytics() {
   useEffect(() => {
     const fetchForecastData = async () => {
       try {
-        const response = await fetch('/api/forecasting/branch-1')
+        const response = await fetch(`/api/forecasting/${branchId === 'all' ? 'all-branches' : branchId}`)
         const data = await response.json()
         setForecastData(data)
       } catch (error) {
