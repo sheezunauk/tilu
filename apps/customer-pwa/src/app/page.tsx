@@ -2,7 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { Button, Card, CardHeader, CardTitle, CardContent, Input, Badge } from '@tillu/ui'
-import { ShoppingCart, MapPin, Clock, Star, Heart, Search } from 'lucide-react'
+import { ShoppingCart, MapPin, Clock, Star, Heart, Search, Wifi, WifiOff, User } from 'lucide-react'
+import { useWebSocket } from '../hooks/useWebSocket'
+import { PersonalizedOffers } from '../components/PersonalizedOffers'
+import { SmartRecommendations } from '../components/SmartRecommendations'
+import { OrderTracking } from '../components/OrderTracking'
 
 interface MenuItem {
   id: string
@@ -25,6 +29,20 @@ export default function CustomerApp() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [customerLocation, setCustomerLocation] = useState('London, UK')
+  const [customerId] = useState('customer-' + Math.random().toString(36).substr(2, 9))
+  const [branchId] = useState('branch-1')
+  const [appliedOffers, setAppliedOffers] = useState<string[]>([])
+
+  const {
+    isConnected,
+    realTimeMenu,
+    stockUpdates,
+    personalizedOffers,
+    orderUpdates,
+    trackItemView,
+    requestRecommendations,
+    placeOrder,
+  } = useWebSocket({ customerId, branchId })
 
   useEffect(() => {
     const mockMenuItems: MenuItem[] = [
@@ -98,6 +116,12 @@ export default function CustomerApp() {
       }
       return [...prev, { ...item, quantity: 1 }]
     })
+    
+    trackItemView(item.id)
+    
+    setTimeout(() => {
+      requestRecommendations([...cart, { ...item, quantity: 1 }])
+    }, 500)
   }
 
   const updateQuantity = (itemId: string, quantity: number) => {
@@ -122,8 +146,31 @@ export default function CustomerApp() {
 
   const checkout = () => {
     if (cart.length === 0) return
+    
+    const orderData = {
+      items: cart,
+      total: getTotalAmount(),
+      appliedOffers,
+      customerLocation,
+      orderType: 'delivery'
+    }
+    
+    placeOrder(orderData)
     alert(`Order placed! Total: £${getTotalAmount().toFixed(2)}`)
     setCart([])
+    setAppliedOffers([])
+  }
+
+  const applyOffer = (offerId: string) => {
+    setAppliedOffers(prev => [...prev, offerId])
+  }
+
+  const getItemStock = (itemId: string) => {
+    return stockUpdates[itemId] ?? 999
+  }
+
+  const isItemAvailable = (itemId: string) => {
+    return getItemStock(itemId) > 0
   }
 
   return (
@@ -136,6 +183,18 @@ export default function CustomerApp() {
             </div>
             
             <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <Badge variant={isConnected ? "success" : "secondary"} className="flex items-center space-x-1">
+                  {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                  <span>{isConnected ? 'Live' : 'Offline'}</span>
+                </Badge>
+                
+                <div className="flex items-center text-sm text-gray-600">
+                  <User className="h-4 w-4 mr-1" />
+                  <span className="hidden sm:inline">Customer</span>
+                </div>
+              </div>
+              
               <div className="flex items-center text-sm text-gray-600">
                 <MapPin className="h-4 w-4 mr-1" />
                 {customerLocation}
@@ -162,6 +221,8 @@ export default function CustomerApp() {
           <p className="text-gray-600">Delicious food delivered to your door</p>
         </div>
 
+        <PersonalizedOffers offers={personalizedOffers} onApplyOffer={applyOffer} />
+
         <div className="mb-6">
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
@@ -187,6 +248,12 @@ export default function CustomerApp() {
             ))}
           </div>
         </div>
+
+        <SmartRecommendations 
+          currentCart={cart} 
+          onAddToCart={addToCart} 
+          isConnected={isConnected}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {filteredItems.map(item => (
@@ -219,9 +286,25 @@ export default function CustomerApp() {
                 </div>
                 
                 <div className="flex items-center justify-between">
-                  <span className="text-xl font-bold text-blue-600">£{item.price.toFixed(2)}</span>
-                  <Button onClick={() => addToCart(item)}>
-                    Add to Cart
+                  <div className="flex flex-col">
+                    <span className="text-xl font-bold text-blue-600">£{item.price.toFixed(2)}</span>
+                    {!isItemAvailable(item.id) && (
+                      <Badge variant="destructive" className="text-xs mt-1">
+                        Out of Stock
+                      </Badge>
+                    )}
+                    {getItemStock(item.id) < 5 && isItemAvailable(item.id) && (
+                      <Badge variant="warning" className="text-xs mt-1">
+                        Only {getItemStock(item.id)} left
+                      </Badge>
+                    )}
+                  </div>
+                  <Button 
+                    onClick={() => addToCart(item)}
+                    disabled={!isItemAvailable(item.id)}
+                    className={!isItemAvailable(item.id) ? 'opacity-50 cursor-not-allowed' : ''}
+                  >
+                    {isItemAvailable(item.id) ? 'Add to Cart' : 'Unavailable'}
                   </Button>
                 </div>
               </CardContent>
@@ -242,6 +325,8 @@ export default function CustomerApp() {
             </div>
           </div>
         )}
+
+        <OrderTracking orderUpdates={orderUpdates} isConnected={isConnected} />
       </main>
     </div>
   )
